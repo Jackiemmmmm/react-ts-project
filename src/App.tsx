@@ -1,27 +1,71 @@
+import { createBrowserHistory } from 'history';
 import * as React from 'react';
-import './App.css';
+import { hot } from 'react-hot-loader';
+import {
+  Route, Router, Switch,
+} from 'react-router-dom';
 
-import logo from './logo.svg';
+import NoMatch from './containers/no-match';
 
-class App extends React.Component {
-  public state = {
-    test: 1,
+import Loading from './components/loading';
+
+
+
+class AsyncComponent extends React.Component<{ getComponent?: any }, { Component?: any }> {
+  public Component = null;
+
+  constructor(props: any) {
+    super(props);
+    this.state = { Component: null };
   }
+
+  public componentWillMount() {
+    const { Component } = this.state;
+    if (!Component) {
+      this._rerenderComponent();
+    }
+  }
+
+  public componentWillReceiveProps() {
+    if (module.hot) {
+      setImmediate(() => this._rerenderComponent());
+    }
+  }
+
   public render() {
-    const { test } = this.state;
-    return (
-      <div className="App">
-        <header className="App-header">
-          <img src={logo} className="App-logo" alt="logo" />
-          <h1 className="App-title">Welcome to React</h1>
-        </header>
-        <p className="App-intro">
-          To get started, edit <code>src/App.tsx</code> and save to reload.
-          {test}
-        </p>
-      </div>
-    );
+    const { Component } = this.state;
+    if (Component) {
+      return <Component {...this.props} />;
+    }
+    return <Loading />;
   }
+
+  private _rerenderComponent() {
+    const { getComponent } = this.props;
+    return getComponent().then((Component: object) => {
+      this.setState({ Component });
+    }, () => {
+      this.setState({ Component: NoMatch });
+    });
+  }
+
 }
 
-export default App;
+const asyncComponent = (getComponent: object) => (props: object) => (
+  <AsyncComponent getComponent={getComponent} {...props} />
+);
+
+const history = createBrowserHistory();
+
+const Home = asyncComponent(() => import(/* webpackChunkName: "Home" */'./containers/home').then(module => module.default));
+
+const App = () => (
+  <Router history={history}>
+    <Switch>
+      <Route exact={true} path="/" component={Home} />
+      <Route component={NoMatch} />
+    </Switch>
+  </Router>
+)
+
+export default hot(module)(App);
